@@ -1,0 +1,17 @@
+{
+  "name": "SensorStream",
+  "version": "0.1.0",
+  "description": "Register sensors by name/unit and stream their float values over BLE in a compact, self-describing packet format. The peripheral exposes a readable metadata characteristic so a central (e.g. Python/Bleak) learns every sensor id, name and unit at runtime.",
+  "keywords": ["ble", "sensor", "esp32", "nimble", "telemetry"],
+  "authors": [
+    {
+      "name": "Mark Kastlunger",
+      "email": "mark.kastlunger@student.tugraz.at"
+    }
+  ],
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"],
+  "dependencies": {
+    "h2zero/NimBLE-Arduino": "^2.2.3"
+  }
+}
