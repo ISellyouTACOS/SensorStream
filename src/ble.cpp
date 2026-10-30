@@ -8,8 +8,8 @@
 
 static NimBLECharacteristic *Characteristic;
 static NimBLECharacteristic *MetadataCharacteristic;
-static bool deviceConnected = 0;
-static uint16_t standardMTU = 23; // standard max BLE packet 23Bytes set to 517
+static volatile bool deviceConnected = 0;
+static volatile uint16_t standardMTU = 23; // standard max BLE packet 23Bytes set to 517
 
 static uint32_t timestamp_notify;
 
@@ -54,17 +54,17 @@ void bleSetup(const char* deviceName) {
 
   Characteristic = Service->createCharacteristic(CHARACTERISTIC_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY); // | NIMBLE_PROPERTY::WRITE
   //Characteristic->setCallbacks(new WriteCallbacks()); // needed to read data sent from phone
-  Characteristic->setValue("Hello from Mark esp32c6 :)");
 
   MetadataCharacteristic = Service->createCharacteristic(METADATA_UUID, NIMBLE_PROPERTY::READ); // damit python id's mit value und einheit einmalig lesen kann.
   MetadataCharacteristic->setValue(buildRegistryJson());
 
   NimBLEAdvertising *Advertising = NimBLEDevice::getAdvertising();
   Advertising->addServiceUUID(SERVICE_UUID);
+  Advertising->enableScanResponse(true);
   Advertising->setName(name);
   Advertising->start();
 
-  Serial.printf("Advertising as %s", name);
+  Serial.printf("Advertising as %s \n", name);
 }
 
 void bleNotify() {
@@ -73,10 +73,14 @@ void bleNotify() {
 
   if ((millis() - timestamp_notify >= 1000) || (recordLen + 10 > blePayLoadLimit())) { // 1s passed or recordBuffer full
     if (recordLen + 10 > blePayLoadLimit()){
+      #if SENSORSTREAM_DEBUG
       Serial.printf("Notify 1/second is too slow now sending after %lu milliseconds from previous notify. Buffer size: %u\n", (unsigned long)(millis() - timestamp_notify), (unsigned)recordLen);
+      #endif 
     }
     if (!deviceConnected){
+      #if SENSORSTREAM_DEBUG
       Serial.printf("Device not connected, throwing away recent data\n");
+      #endif 
 
       recordLen = 0;
       timestamp_notify = millis();

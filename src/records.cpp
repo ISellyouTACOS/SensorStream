@@ -6,10 +6,8 @@ size_t recordLen = 0;
 static uint32_t starting_timestamp; // static, only used in this file.
 static uint32_t current_timestamp = 0;
 static bool isFirstRecord = 1;
+static bool registryPublished = 0;
 
-/*extern uint32_t starting_timestamp;
-extern uint32_t current_timestamp;
-extern bool isFirstRecord;*/
 
 struct SensorMeta {
   char name[MAX_NAME_LEN + 1];
@@ -22,13 +20,22 @@ static uint8_t sensorCount = 0;
 void copyTruncated(char* dest, const char* src, uint8_t maxLen) {
   uint8_t i = 0;
   while (src[i] != '\0' && i < maxLen) { // stop at end of src or when full
-    dest[i] = src[i];
+    
+    //--------------------edge case
+    char c = src[i];
+    if (c == '"' || c == '\\' || c == '|')
+    c = '_';
+    //----------------------
+
+    dest[i] = c;
     i++;
   }
   dest[i] = '\0'; // always terminate
 }
 
 uint8_t registerSensor(const char* name, const char* unit) {
+  if (registryPublished)
+    Serial.printf("[WARNING] you have to registerSensor() before bleSetup(), receiver won't know the sensor's name\n");
   if (sensorCount >= MAX_SENSORS) {
     Serial.printf("registerSensor: registry full (max %d), %s ignored\n", MAX_SENSORS, name);
     return TS_MARKER;
@@ -40,6 +47,7 @@ uint8_t registerSensor(const char* name, const char* unit) {
 }
 
 const char* buildRegistryJson() {
+  registryPublished = 1;
   static String json;
   json = "[";
   for (uint8_t i = 0; i < sensorCount; i++) {
@@ -52,7 +60,7 @@ const char* buildRegistryJson() {
 
 void addRecord(uint8_t id, float value) { // timestamp, id, value, id, value, id, value, timestamp etc.
 
-  if (id > sensorCount){ // id 0xFF prohibited
+  if (id >= sensorCount){ // id 0xFF prohibited
     return;
   }
 
@@ -75,8 +83,10 @@ void addRecord(uint8_t id, float value) { // timestamp, id, value, id, value, id
   }
 
   #if SENSORSTREAM_DEBUG
-  Serial.printf("adding Record with timestamp: ID: %u, timestamp: %u, value: %f\n", id, (unsigned long)now, value);
+  Serial.printf("adding Record with timestamp: ID: %u, timestamp: %lu, value: %f\n", id, (unsigned long)now, value);
   #endif
+
+  current_timestamp = now;
 
   recordBuffer[recordLen] = TS_MARKER;
   recordLen++;
