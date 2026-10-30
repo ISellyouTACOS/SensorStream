@@ -42,7 +42,7 @@ That's the whole API:
 | --- | --- |
 | `uint8_t registerSensor(name, unit = "")` | Reserve a free id for a sensor. Returns the id (or `0xFF` if full). Call once in `setup()`, before `bleSetup()`. |
 | `void bleSetup(name = "Mark esp")` | Initialise BLE, publish the sensor registry, start advertising under `name`. Call after all `registerSensor` calls. Give each ESP a distinct name so a central can tell several nodes apart. |
-| `void addRecord(uint8_t id, float value)` | Buffer one measurement. Records sharing a millis timestamp share one timestamp on the wire; the buffer is flushed over BLE automatically. |
+| `void addRecord(uint8_t id, float value)` | Buffer one measurement. Records sharing a millis timestamp share one timestamp on the wire; the recordBuffer is flushed over BLE automatically. |
 
 ## Multiple ESPs at once
 

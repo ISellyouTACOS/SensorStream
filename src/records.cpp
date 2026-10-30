@@ -1,11 +1,15 @@
 #include "records.h"
 #include "ble.h"
 
-uint8_t buffer[MAX_PAYLOAD]; // one packet with records
-size_t len = 0;
-uint32_t starting_timestamp;
-uint32_t current_timestamp = 0;
-bool isFirstRecord = 1;
+uint8_t recordBuffer[MAX_PAYLOAD]; // one packet with records
+size_t recordLen = 0;
+static uint32_t starting_timestamp; // static, only used in this file.
+static uint32_t current_timestamp = 0;
+static bool isFirstRecord = 1;
+
+/*extern uint32_t starting_timestamp;
+extern uint32_t current_timestamp;
+extern bool isFirstRecord;*/
 
 struct SensorMeta {
   char name[MAX_NAME_LEN + 1];
@@ -48,39 +52,41 @@ const char* buildRegistryJson() {
 
 void addRecord(uint8_t id, float value) { // timestamp, id, value, id, value, id, value, timestamp etc.
 
-  if (isFirstRecord){ // first measurement will have timestamp = 0;
-    isFirstRecord = 0;
-    starting_timestamp = millis();
-  }
-
-  if (len + 5 > MAX_PAYLOAD)
-    bleNotify();
-
-
-  if (current_timestamp == millis() - starting_timestamp){ // same timestamp more often-> use 1 timestamp per group
-    Serial.printf("addingRecord: ID: %u, value: %f\n", id, value); // 250ms to 330ms between each notify, good.
-    buffer[len] = id;
-    len ++;
-    memcpy(buffer + len, &value, 4);
-    len += 4;
+  if (id > sensorCount){ // id 0xFF prohibited
     return;
   }
 
-  if (len + 10 > MAX_PAYLOAD)
-    bleNotify(); 
+  bleNotify(); // With very slow sensors bleNotify() should be called in loop
+  if (isFirstRecord){ 
+    isFirstRecord = 0;
+    starting_timestamp = millis();
+  }
+  uint32_t now = millis() - starting_timestamp;
 
-  current_timestamp = millis() - starting_timestamp;
+  if (recordLen > 0 && current_timestamp == now){ // same timestamp more often-> use 1 timestamp per group
+    #if SENSORSTREAM_DEBUG
+    Serial.printf("addingRecord: ID: %u, value: %f\n", id, value); // 250ms to 330ms between each notify, good.
+    #endif
+    recordBuffer[recordLen] = id;
+    recordLen ++;
+    memcpy(recordBuffer + recordLen, &value, 4);
+    recordLen += 4;
+    return;
+  }
 
-  Serial.printf("adding Record with timestamp: ID: %u, timestamp: %u, value: %f\n", id, current_timestamp, value);
+  #if SENSORSTREAM_DEBUG
+  Serial.printf("adding Record with timestamp: ID: %u, timestamp: %u, value: %f\n", id, (unsigned long)now, value);
+  #endif
 
-  buffer[len] = TS_MARKER;
-  len++;
-  memcpy(buffer + len, &current_timestamp, 4); //4bytes timestamp
-  len += 4;
-  buffer[len] = id; //1byte id
-  len ++;
-  memcpy(buffer + len, &value, 4); // 4 bytes value
-  len +=4;
+  recordBuffer[recordLen] = TS_MARKER;
+  recordLen++;
+  memcpy(recordBuffer + recordLen, &now, 4); //4bytes timestamp
+  recordLen += 4;
+  recordBuffer[recordLen] = id; //1byte id
+  recordLen ++;
+  memcpy(recordBuffer + recordLen, &value, 4); // 4 bytes value
+  recordLen +=4;
+  return;
 }
 
 // Question: Timestamp calculation in python instead of here? more efficient.

@@ -6,12 +6,12 @@
 #define CHARACTERISTIC_UUID "6ff149d0-ec5f-4c78-b8e5-d8e503a67057" // both random generated https://www.uuidgenerator.net/
 #define METADATA_UUID "9d3a8c41-1b2e-4f7a-9c6d-2e5f8a0b1c3d" // readable sensor id -> name/unit registry (JSON)
 
-NimBLECharacteristic *Characteristic;
-NimBLECharacteristic *MetadataCharacteristic;
-bool deviceConnected = 0;
-uint16_t standardMTU = 23; // standard max BLE packet 23Bytes set to 517
+static NimBLECharacteristic *Characteristic;
+static NimBLECharacteristic *MetadataCharacteristic;
+static bool deviceConnected = 0;
+static uint16_t standardMTU = 23; // standard max BLE packet 23Bytes set to 517
 
-uint32_t timestamp_notify;
+static uint32_t timestamp_notify;
 
 class ServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer *s, NimBLEConnInfo &info) override {
@@ -68,28 +68,39 @@ void bleSetup(const char* deviceName) {
 }
 
 void bleNotify() {
-  if ((millis() - timestamp_notify >= 1000) || (len + 10 > MAX_PAYLOAD)) {
-    if (len + 10 > MAX_PAYLOAD){
-      Serial.printf("Notify 1/second is too slow now sending after %d milliseconds from previous notify. Buffer size: %u\n", millis() - timestamp_notify, len);
+  if (recordLen == 0) 
+    return;
+
+  if ((millis() - timestamp_notify >= 1000) || (recordLen + 10 > blePayLoadLimit())) { // 1s passed or recordBuffer full
+    if (recordLen + 10 > blePayLoadLimit()){
+      Serial.printf("Notify 1/second is too slow now sending after %lu milliseconds from previous notify. Buffer size: %u\n", (unsigned long)(millis() - timestamp_notify), (unsigned)recordLen);
     }
     if (!deviceConnected){
       Serial.printf("Device not connected, throwing away recent data\n");
 
-      len = 0;
+      recordLen = 0;
       timestamp_notify = millis();
       return;
     }
-    Characteristic->setValue(buffer, len);
+    Characteristic->setValue(recordBuffer, recordLen);
     Characteristic->notify();
-    //Serial.printf("Just notified via BLE, length: %u bytes, content: ", len);
-    // for (size_t i=0; i<len; i++){
-    //   Serial.printf("%02X", buffer[i]); // 02X each byte as 2 uppercase hex.
+    //Serial.printf("Just notified via BLE, length: %u bytes, content: ", recordLen);
+    // for (size_t i=0; i<recordLen; i++){
+    //   Serial.printf("%02X", recordBuffer[i]); // 02X each byte as 2 uppercase hex.
     // }
     // Serial.printf("\n");
-    len = 0;
+    recordLen = 0;
     timestamp_notify = millis();
   }
 }
+
+size_t blePayLoadLimit(){
+  size_t limit = standardMTU - 3; // is requested to be 517 but might be smaller
+  if (limit > MAX_PAYLOAD)
+    limit = MAX_PAYLOAD;
+  return limit;
+}
+
 
 // send as bytearray with timestamp. 1mal/sek oder 0.5sek notify mit allen messwerten. millis() / micros()
 // timestamp(uint64) + value(float)
